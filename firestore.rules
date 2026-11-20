@@ -1,0 +1,451 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'banreeapp@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function elderExistsOrCreated(elderId) {
+      return exists(/databases/$(database)/documents/elders/$(elderId))
+        || existsAfter(/databases/$(database)/documents/elders/$(elderId));
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'facility', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'role', 'facility', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['officer', 'family', 'admin']
+        && data.facility is string && data.facility.size() >= 1 && data.facility.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'phone', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidElder(data) {
+      return data.keys().hasAll([
+          'ownerId', 'hn', 'fullName', 'age', 'gender', 'village', 'subDistrict',
+          'facility', 'chronicDiseases', 'medicationsCount', 'adlScore', 'adlGroup',
+          'riskLevel', 'latestAlertStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'hn', 'fullName', 'age', 'gender', 'village', 'subDistrict',
+          'facility', 'chronicDiseases', 'medicationsCount', 'adlScore', 'adlGroup',
+          'riskLevel', 'latestAlertStatus', 'aiCarePlanSummary', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && isValidId(data.hn) && data.hn.size() >= 2 && data.hn.size() <= 32
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && data.age is int && data.age >= 50 && data.age <= 125
+        && data.gender in ['male', 'female', 'other']
+        && data.village is string && data.village.size() >= 1 && data.village.size() <= 64
+        && data.subDistrict in ['ดอนพุด', 'ไผ่หลิ่ว', 'บ้านหลวง', 'ดงตะงาว']
+        && data.facility is string && data.facility.size() >= 2 && data.facility.size() <= 120
+        && data.chronicDiseases is list && data.chronicDiseases.size() <= 10
+        && (data.chronicDiseases.size() == 0 || (data.chronicDiseases[0] is string && data.chronicDiseases[0].size() <= 80))
+        && data.medicationsCount is int && data.medicationsCount >= 0 && data.medicationsCount <= 40
+        && data.adlScore is int && data.adlScore >= 0 && data.adlScore <= 20
+        && data.adlGroup in ['ติดสังคม', 'ติดบ้าน', 'ติดเตียง']
+        && data.riskLevel in ['normal', 'watch', 'high', 'critical']
+        && data.latestAlertStatus in ['none', 'active', 'acknowledged']
+        && (!('aiCarePlanSummary' in data) || (data.aiCarePlanSummary is string && data.aiCarePlanSummary.size() <= 4000))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidElderPrivateContact(data) {
+      return data.keys().hasAll(['ownerId', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'phone', 'address', 'emergencyContact', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
+        && (!('address' in data) || (data.address is string && data.address.size() <= 240))
+        && (!('emergencyContact' in data) || (data.emergencyContact is string && data.emergencyContact.size() <= 120))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAssessment(data) {
+      return data.keys().hasAll([
+          'ownerId', 'elderId', 'elderName', 'assessorName', 'facility',
+          'bpSystolic', 'bpDiastolic', 'heartRate', 'spo2', 'fbs', 'bmi',
+          'adlScore', 'adlGroup', 'depress2Q', 'cogMiniCog', 'tugtSeconds',
+          'fallRisk', 'polypharmacy', 'riskLevel', 'abnormalFlags', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'elderId', 'elderName', 'assessorName', 'facility',
+          'bpSystolic', 'bpDiastolic', 'heartRate', 'spo2', 'fbs', 'bmi',
+          'adlScore', 'adlGroup', 'depress2Q', 'cogMiniCog', 'tugtSeconds',
+          'fallRisk', 'polypharmacy', 'riskLevel', 'abnormalFlags', 'aiCarePlan',
+          'cgaDetailJson', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && isValidId(data.elderId)
+        && data.elderName is string && data.elderName.size() >= 1 && data.elderName.size() <= 120
+        && data.assessorName is string && data.assessorName.size() >= 1 && data.assessorName.size() <= 120
+        && data.facility is string && data.facility.size() >= 1 && data.facility.size() <= 120
+        && data.bpSystolic is int && data.bpSystolic >= 50 && data.bpSystolic <= 280
+        && data.bpDiastolic is int && data.bpDiastolic >= 30 && data.bpDiastolic <= 180
+        && data.heartRate is int && data.heartRate >= 25 && data.heartRate <= 240
+        && data.spo2 is int && data.spo2 >= 50 && data.spo2 <= 100
+        && data.fbs is int && data.fbs >= 20 && data.fbs <= 700
+        && (data.bmi is int || data.bmi is float) && data.bmi >= 10 && data.bmi <= 70
+        && data.adlScore is int && data.adlScore >= 0 && data.adlScore <= 20
+        && data.adlGroup in ['ติดสังคม', 'ติดบ้าน', 'ติดเตียง']
+        && data.depress2Q is int && data.depress2Q >= 0 && data.depress2Q <= 2
+        && data.cogMiniCog is int && data.cogMiniCog >= 0 && data.cogMiniCog <= 5
+        && (data.tugtSeconds is int || data.tugtSeconds is float) && data.tugtSeconds >= 0 && data.tugtSeconds <= 180
+        && data.fallRisk is bool
+        && data.polypharmacy is bool
+        && data.riskLevel in ['normal', 'watch', 'high', 'critical']
+        && data.abnormalFlags is list && data.abnormalFlags.size() <= 12
+        && (data.abnormalFlags.size() == 0 || (data.abnormalFlags[0] is string && data.abnormalFlags[0].size() <= 140))
+        && (!('aiCarePlan' in data) || (data.aiCarePlan is string && data.aiCarePlan.size() <= 6000))
+        && (!('cgaDetailJson' in data) || (data.cgaDetailJson is string && data.cgaDetailJson.size() <= 16000))
+        && data.status in ['completed', 'referred', 'follow_up']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll([
+          'ownerId', 'elderId', 'elderName', 'severity', 'title',
+          'description', 'source', 'acknowledged', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'elderId', 'elderName', 'severity', 'title',
+          'description', 'source', 'acknowledged', 'acknowledgedBy', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && isValidId(data.elderId)
+        && data.elderName is string && data.elderName.size() >= 1 && data.elderName.size() <= 120
+        && data.severity in ['warning', 'urgent', 'critical']
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 180
+        && data.description is string && data.description.size() >= 2 && data.description.size() <= 1000
+        && data.source in ['cga_screening', 'family_checkin', 'ai_monitor']
+        && data.acknowledged is bool
+        && (!('acknowledgedBy' in data) || (data.acknowledgedBy is string && data.acknowledgedBy.size() <= 120))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReferral(data) {
+      return data.keys().hasAll([
+          'ownerId', 'elderId', 'elderName', 'fromFacility', 'toFacility',
+          'reason', 'urgency', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'elderId', 'elderName', 'fromFacility', 'toFacility',
+          'reason', 'urgency', 'status', 'notes', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && isValidId(data.elderId)
+        && data.elderName is string && data.elderName.size() >= 1 && data.elderName.size() <= 120
+        && data.fromFacility is string && data.fromFacility.size() >= 2 && data.fromFacility.size() <= 120
+        && data.toFacility is string && data.toFacility.size() >= 2 && data.toFacility.size() <= 120
+        && data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 600
+        && data.urgency in ['routine', 'urgent', 'emergency']
+        && data.status in ['pending', 'in_transit', 'received', 'completed']
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCareLog(data) {
+      return data.keys().hasAll([
+          'ownerId', 'elderId', 'elderName', 'loggedBy', 'bpSystolic', 'bpDiastolic',
+          'mood', 'appetite', 'medicationTaken', 'hasAbnormal', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'elderId', 'elderName', 'loggedBy', 'bpSystolic', 'bpDiastolic',
+          'mood', 'appetite', 'medicationTaken', 'symptomNote', 'hasAbnormal', 'createdAt'
+        ])
+        && isValidId(data.ownerId)
+        && isValidId(data.elderId)
+        && data.elderName is string && data.elderName.size() >= 1 && data.elderName.size() <= 120
+        && data.loggedBy is string && data.loggedBy.size() >= 1 && data.loggedBy.size() <= 120
+        && data.bpSystolic is int && data.bpSystolic >= 50 && data.bpSystolic <= 280
+        && data.bpDiastolic is int && data.bpDiastolic >= 30 && data.bpDiastolic <= 180
+        && data.mood in ['สดชื่น', 'ปกติ', 'อ่อนเพลีย', 'ซึม/สับสน']
+        && data.appetite in ['ทานได้ดี', 'ทานได้น้อย', 'เบื่ออาหาร']
+        && data.medicationTaken is bool
+        && (!('symptomNote' in data) || (data.symptomNote is string && data.symptomNote.size() <= 500))
+        && data.hasAbnormal is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidBackupRecord(data) {
+      return data.keys().hasAll([
+          'ownerId', 'label', 'eldersCount', 'assessmentsCount',
+          'referralsCount', 'snapshotJson', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'label', 'eldersCount', 'assessmentsCount',
+          'referralsCount', 'snapshotJson', 'googleSheetUrl', 'createdAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.label is string && data.label.size() >= 2 && data.label.size() <= 160
+        && data.eldersCount is int && data.eldersCount >= 0 && data.eldersCount <= 50000
+        && data.assessmentsCount is int && data.assessmentsCount >= 0 && data.assessmentsCount <= 200000
+        && data.referralsCount is int && data.referralsCount >= 0 && data.referralsCount <= 50000
+        && data.snapshotJson is string && data.snapshotJson.size() >= 2 && data.snapshotJson.size() <= 500000
+        && (!('googleSheetUrl' in data) || (data.googleSheetUrl is string && data.googleSheetUrl.size() <= 300))
+        && data.createdAt is timestamp;
+    }
+
+    // --- Admin Registry ---
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create, update, delete: if isValidId(adminId) && isBootstrappedAdmin();
+    }
+
+    // --- Users & Isolated PII ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && userId == request.auth.uid
+        && (incoming().role in ['family', 'officer'] || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'facility', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin());
+        allow list: if isBootstrappedAdmin();
+        allow create: if isValidId(userId) && isValidId(docId)
+          && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == userId
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(docId)
+          && (isOwner(userId) || isAdmin())
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // --- Elders & Isolated Contact PII ---
+    match /elders/{elderId} {
+      allow get: if isValidId(elderId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(elderId)
+        && isVerifiedUser()
+        && isValidElder(incoming())
+        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(elderId)
+        && isVerifiedUser()
+        && isValidElder(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+            'fullName', 'age', 'gender', 'village', 'subDistrict', 'facility',
+            'chronicDiseases', 'medicationsCount', 'adlScore', 'adlGroup',
+            'riskLevel', 'latestAlertStatus', 'aiCarePlanSummary', 'updatedAt'
+          ]))
+        );
+      allow delete: if isValidId(elderId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+
+      match /private/{docId} {
+        allow get: if isValidId(elderId) && isValidId(docId) && isVerifiedUser() && (
+          get(/databases/$(database)/documents/elders/$(elderId)).data.ownerId == request.auth.uid || isAdmin()
+        );
+        allow list: if isBootstrappedAdmin();
+        allow create: if isValidId(elderId) && isValidId(docId)
+          && isVerifiedUser()
+          && isValidElderPrivateContact(incoming())
+          && incoming().updatedAt == request.time
+          && elderExistsOrCreated(elderId)
+          && (
+            getAfter(/databases/$(database)/documents/elders/$(elderId)).data.ownerId == request.auth.uid || isAdmin()
+          )
+          && (incoming().ownerId == request.auth.uid || isAdmin());
+        allow update: if isValidId(elderId) && isValidId(docId)
+          && isVerifiedUser()
+          && isValidElderPrivateContact(incoming())
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (get(/databases/$(database)/documents/elders/$(elderId)).data.ownerId == request.auth.uid
+              && incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'address', 'emergencyContact', 'updatedAt']))
+          );
+        allow delete: if isValidId(elderId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // --- Assessments ---
+    match /assessments/{assessmentId} {
+      allow get: if isValidId(assessmentId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(assessmentId)
+        && isVerifiedUser()
+        && isValidAssessment(incoming())
+        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && elderExistsOrCreated(incoming().elderId);
+      allow update: if isValidId(assessmentId)
+        && isVerifiedUser()
+        && isValidAssessment(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().elderId == existing().elderId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+            'aiCarePlan', 'status', 'riskLevel', 'abnormalFlags', 'updatedAt'
+          ]))
+        );
+      allow delete: if isValidId(assessmentId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // --- Alerts ---
+    match /alerts/{alertId} {
+      allow get: if isValidId(alertId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(alertId)
+        && isVerifiedUser()
+        && isValidAlert(incoming())
+        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && elderExistsOrCreated(incoming().elderId);
+      allow update: if isValidId(alertId)
+        && isVerifiedUser()
+        && isValidAlert(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().elderId == existing().elderId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (existing().ownerId == request.auth.uid && existing().acknowledged == false
+            && incoming().diff(existing()).affectedKeys().hasOnly(['acknowledged', 'acknowledgedBy', 'updatedAt']))
+        );
+      allow delete: if isValidId(alertId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // --- Referrals (with Terminal State Locking) ---
+    match /referrals/{referralId} {
+      allow get: if isValidId(referralId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(referralId)
+        && isVerifiedUser()
+        && isValidReferral(incoming())
+        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && elderExistsOrCreated(incoming().elderId);
+      allow update: if isValidId(referralId)
+        && isVerifiedUser()
+        && isValidReferral(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().elderId == existing().elderId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (existing().ownerId == request.auth.uid
+            && existing().status != 'completed'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'urgency', 'updatedAt']))
+        );
+      allow delete: if isValidId(referralId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // --- Mobile Care Logs ---
+    match /careLogs/{logId} {
+      allow get: if isValidId(logId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(logId)
+        && isVerifiedUser()
+        && isValidCareLog(incoming())
+        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && elderExistsOrCreated(incoming().elderId);
+      allow update: if false;
+      allow delete: if isValidId(logId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // --- Cloud Backups ---
+    match /backups/{backupId} {
+      allow get: if isValidId(backupId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(backupId)
+        && isVerifiedUser()
+        && isValidBackupRecord(incoming())
+        && (incoming().ownerId == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(backupId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+  }
+}

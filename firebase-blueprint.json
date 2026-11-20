@@ -1,0 +1,616 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Operational user profile for Don Phut public health officers and family caregivers.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["officer", "family", "admin"]
+        },
+        "facility": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "role", "facility", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII for user accounts (email and phone).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "Elder": {
+      "title": "Elder",
+      "description": "Elderly patient registry record in Don Phut district (non-PII clinical summary).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hn": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "age": {
+          "type": "integer"
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["male", "female", "other"]
+        },
+        "village": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "subDistrict": {
+          "type": "string",
+          "enum": ["ดอนพุด", "ไผ่หลิ่ว", "บ้านหลวง", "ดงตะงาว"]
+        },
+        "facility": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "chronicDiseases": {
+          "type": "array",
+          "description": "Bounded up to 10 chronic condition labels."
+        },
+        "medicationsCount": {
+          "type": "integer"
+        },
+        "adlScore": {
+          "type": "integer"
+        },
+        "adlGroup": {
+          "type": "string",
+          "enum": ["ติดสังคม", "ติดบ้าน", "ติดเตียง"]
+        },
+        "riskLevel": {
+          "type": "string",
+          "enum": ["normal", "watch", "high", "critical"]
+        },
+        "latestAlertStatus": {
+          "type": "string",
+          "enum": ["none", "active", "acknowledged"]
+        },
+        "aiCarePlanSummary": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "hn",
+        "fullName",
+        "age",
+        "gender",
+        "village",
+        "subDistrict",
+        "facility",
+        "chronicDiseases",
+        "medicationsCount",
+        "adlScore",
+        "adlGroup",
+        "riskLevel",
+        "latestAlertStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ElderPrivateContact": {
+      "title": "ElderPrivateContact",
+      "description": "Isolated PII contact details for an elderly resident.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "emergencyContact": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "updatedAt"]
+    },
+    "Assessment": {
+      "title": "Assessment",
+      "description": "Comprehensive Geriatric Assessment (CGA) evaluation record.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "assessorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "facility": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "bpSystolic": {
+          "type": "integer"
+        },
+        "bpDiastolic": {
+          "type": "integer"
+        },
+        "heartRate": {
+          "type": "integer"
+        },
+        "spo2": {
+          "type": "integer"
+        },
+        "fbs": {
+          "type": "integer"
+        },
+        "bmi": {
+          "type": "number"
+        },
+        "adlScore": {
+          "type": "integer"
+        },
+        "adlGroup": {
+          "type": "string",
+          "enum": ["ติดสังคม", "ติดบ้าน", "ติดเตียง"]
+        },
+        "depress2Q": {
+          "type": "integer"
+        },
+        "cogMiniCog": {
+          "type": "integer"
+        },
+        "tugtSeconds": {
+          "type": "number"
+        },
+        "fallRisk": {
+          "type": "boolean"
+        },
+        "polypharmacy": {
+          "type": "boolean"
+        },
+        "riskLevel": {
+          "type": "string",
+          "enum": ["normal", "watch", "high", "critical"]
+        },
+        "abnormalFlags": {
+          "type": "array",
+          "description": "Bounded up to 12 detected clinical anomaly flags."
+        },
+        "aiCarePlan": {
+          "type": "string",
+          "maxLength": 6000
+        },
+        "cgaDetailJson": {
+          "type": "string",
+          "maxLength": 16000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "referred", "follow_up"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "elderId",
+        "elderName",
+        "assessorName",
+        "facility",
+        "bpSystolic",
+        "bpDiastolic",
+        "heartRate",
+        "spo2",
+        "fbs",
+        "bmi",
+        "adlScore",
+        "adlGroup",
+        "depress2Q",
+        "cogMiniCog",
+        "tugtSeconds",
+        "fallRisk",
+        "polypharmacy",
+        "riskLevel",
+        "abnormalFlags",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Alert": {
+      "title": "Alert",
+      "description": "Real-time abnormal symptom or vital sign alert.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["warning", "urgent", "critical"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 180
+        },
+        "description": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 1000
+        },
+        "source": {
+          "type": "string",
+          "enum": ["cga_screening", "family_checkin", "ai_monitor"]
+        },
+        "acknowledged": {
+          "type": "boolean"
+        },
+        "acknowledgedBy": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "elderId",
+        "elderName",
+        "severity",
+        "title",
+        "description",
+        "source",
+        "acknowledged",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Inter-facility referral record between Sub-district Health Promoting Hospitals and Don Phut Hospital.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "fromFacility": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "toFacility": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 600
+        },
+        "urgency": {
+          "type": "string",
+          "enum": ["routine", "urgent", "emergency"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_transit", "received", "completed"]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "elderId",
+        "elderName",
+        "fromFacility",
+        "toFacility",
+        "reason",
+        "urgency",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CareLog": {
+      "title": "CareLog",
+      "description": "Mobile check-in log submitted by family caregivers or village health volunteers.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "elderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "loggedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "bpSystolic": {
+          "type": "integer"
+        },
+        "bpDiastolic": {
+          "type": "integer"
+        },
+        "mood": {
+          "type": "string",
+          "enum": ["สดชื่น", "ปกติ", "อ่อนเพลีย", "ซึม/สับสน"]
+        },
+        "appetite": {
+          "type": "string",
+          "enum": ["ทานได้ดี", "ทานได้น้อย", "เบื่ออาหาร"]
+        },
+        "medicationTaken": {
+          "type": "boolean"
+        },
+        "symptomNote": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "hasAbnormal": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "elderId",
+        "elderName",
+        "loggedBy",
+        "bpSystolic",
+        "bpDiastolic",
+        "mood",
+        "appetite",
+        "medicationTaken",
+        "hasAbnormal",
+        "createdAt"
+      ]
+    },
+    "BackupRecord": {
+      "title": "BackupRecord",
+      "description": "Cloud backup snapshot metadata for auditability and history recovery.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "eldersCount": {
+          "type": "integer"
+        },
+        "assessmentsCount": {
+          "type": "integer"
+        },
+        "referralsCount": {
+          "type": "integer"
+        },
+        "snapshotJson": {
+          "type": "string",
+          "maxLength": 500000
+        },
+        "googleSheetUrl": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "label",
+        "eldersCount",
+        "assessmentsCount",
+        "referralsCount",
+        "snapshotJson",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User operational profiles."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII for user accounts."
+    },
+    "/elders/{elderId}": {
+      "schema": { "$ref": "#/entities/Elder" },
+      "description": "Elderly resident registry."
+    },
+    "/elders/{elderId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/ElderPrivateContact" },
+      "description": "Isolated PII contact details for elderly residents."
+    },
+    "/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/Assessment" },
+      "description": "CGA assessments."
+    },
+    "/alerts/{alertId}": {
+      "schema": { "$ref": "#/entities/Alert" },
+      "description": "Abnormal symptom and vital alerts."
+    },
+    "/referrals/{referralId}": {
+      "schema": { "$ref": "#/entities/Referral" },
+      "description": "Hospital & sub-district referrals."
+    },
+    "/careLogs/{logId}": {
+      "schema": { "$ref": "#/entities/CareLog" },
+      "description": "Family & community health volunteer daily check-ins."
+    },
+    "/backups/{backupId}": {
+      "schema": { "$ref": "#/entities/BackupRecord" },
+      "description": "Automated and manual cloud backup snapshots."
+    }
+  }
+}
